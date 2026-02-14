@@ -1,0 +1,47 @@
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Environment Variables (CRITICAL)
+.env
+
+# Catch-all for .cache
+.cache/
+.cache.sqlite
+
+# IDEs
+.idea/
+.vscode/
+
+# Project specific
+model.pkl
+features.pkl
+# We might want to track model.pkl if it's small, but usually LFS. 
+# For this project, let's allow model.pkl so the user can deploy easily without retraining first.
+!model.pkl
+!features.pkl

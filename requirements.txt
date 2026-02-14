@@ -1,0 +1,15 @@
+pandas
+numpy
+requests
+pymongo[srv]
+scikit-learn
+xgboost
+streamlit
+python-dotenv
+matplotlib
+seaborn
+openmeteo-requests
+requests-cache
+retry_requests
+pytest
+plotly
