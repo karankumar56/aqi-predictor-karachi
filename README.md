@@ -3,6 +3,8 @@
 > **Advanced Machine Learning Pipeline for Real-Time Air Quality Forecasting**  
 > *Developed by Karan Kumar | Top-Tier Performance (RMSE: 1.75)*
 
+**[Live Dashboard 🚀](https://aqi-predictor-karachi-3xndd8h5cdhoj79hz2fikz.streamlit.app/)**
+
 ## 🚀 Project Overview
 The **Karachi AQI Prediction System** is an end-to-end automated platform that forecasts the Air Quality Index (AQI) for Karachi for the next 72 hours.
 Built with a focus on precision and scalability, this project outperforms baseline models by leveraging advanced feature engineering and an ensemble of **XGBoost** and **Random Forest** algorithms.
