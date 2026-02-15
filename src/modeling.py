@@ -130,7 +130,8 @@ def predict_next_72_hours(model, features, recent_data):
         X_input = input_row[features]
         
         # Predict
-        pred_aqi = model.predict(X_input)[0]
+        # Use np.maximum(0, ...) to prevent negative predictions which are physically impossible
+        pred_aqi = np.maximum(0, model.predict(X_input)[0])
         
         # Update history with predicted value for next iteration's feature calc
         history_df.at[history_df.index[-1], 'us_aqi'] = pred_aqi
