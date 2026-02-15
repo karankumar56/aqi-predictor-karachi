@@ -101,40 +101,37 @@ def train_and_evaluate():
 def predict_next_72_hours(model, features, recent_data):
     """
     Generates a 72-hour AQI forecast using recursive multi-step forecasting.
-    Re-calculates features at each step to ensure consistency.
+    Correctly aligns features from T to predict T+1.
     """
     predictions = []
+    # Work on a copy of the dataframe
     history_df = recent_data.copy()
-    last_date = history_df['date'].iloc[-1]
     
-    for i in range(1, 73):
-        next_date = last_date + pd.Timedelta(hours=i)
+    for _ in range(72):
+        # 1. Feature Engineering: Re-calculate features based on current history
+        # This includes lag and rolling features updated with previous predictions
+        df_processed = preprocess_data(history_df.copy())
         
-        # Create next timestamp row
-        new_row = pd.DataFrame({'date': [next_date]})
+        # 2. Alignment: Use the VERY LAST row (T) to predict the NEXT hour (T+1)
+        input_row = df_processed.iloc[-1:]
+        X_input = input_row[features]
         
-        # Carry forward external variables (assumption: persistence for non-target vars)
-        last_row_vals = history_df.iloc[-1].to_dict()
-        for col, val in last_row_vals.items():
+        # 3. Predict: Sanity clip to 0 which is the physical floor
+        pred_aqi = np.maximum(0, model.predict(X_input)[0])
+        
+        # 4. Update History: Add a new row for the forecast hour
+        last_date = history_df['date'].iloc[-1]
+        next_date = last_date + pd.Timedelta(hours=1)
+        
+        new_row = pd.DataFrame({'date': [next_date], 'us_aqi': [pred_aqi]})
+        
+        # Carry forward external/environmental variables (persistence assumption)
+        last_known_vals = history_df.iloc[-1].to_dict()
+        for col, val in last_known_vals.items():
             if col not in ['date', 'us_aqi', 'target'] and col not in new_row.columns:
                  new_row[col] = val
                  
         history_df = pd.concat([history_df, new_row], ignore_index=True)
-        
-        # Re-generate features with the new row included
-        # This allows lag/rolling features to update based on previous predictions
-        df_processed = preprocess_data(history_df.copy())
-        
-        # Prepare input for model
-        input_row = df_processed.iloc[-1:]
-        X_input = input_row[features]
-        
-        # Predict
-        # Use np.maximum(0, ...) to prevent negative predictions which are physically impossible
-        pred_aqi = np.maximum(0, model.predict(X_input)[0])
-        
-        # Update history with predicted value for next iteration's feature calc
-        history_df.at[history_df.index[-1], 'us_aqi'] = pred_aqi
         
         predictions.append({'date': next_date, 'predicted_aqi': pred_aqi})
         
