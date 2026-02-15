@@ -80,10 +80,12 @@ def train_and_evaluate():
         except Exception as e:
             print(f"Failed to train {name}: {e}")
             
+    if best_model is None:
+        print("\n❌ Error: No models were successfully trained. Check the logs above for specific errors.")
+        import sys
+        sys.exit(1)
+
     print(f"\nBest model: {best_name} with RMSE: {best_score:.4f}")
-    
-    # Retrain best model on full dataset for production?
-    # Usually yes, or just use the trained one. Let's use the trained one for safety for now.
     
     # Save best model
     with open('model.pkl', 'wb') as f:
