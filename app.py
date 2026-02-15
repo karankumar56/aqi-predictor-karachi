@@ -92,13 +92,13 @@ st.markdown("""
 # HELPER FUNCTIONS
 # -----------------------------------------------------------------------------
 @st.cache_resource
-def load_model_resources():
+def load_model_resources(m_hash):
     try:
         with open('model.pkl', 'rb') as f:
             model = pickle.load(f)
         with open('features.pkl', 'rb') as f:
             features = pickle.load(f)
-        return model, features, "XGBoost (RMSE: 1.75)"
+        return model, features, f"XGBoost ({len(features)} features)"
     except Exception as e:
         return None, None, None
 
@@ -131,7 +131,14 @@ st.markdown("---")
 
 # 1. Connection Status (Mimicking the reference style)
 df_all, db_connected = get_data_from_db()
-model, features, model_name = load_model_resources()
+
+# Force cache invalidation if files change
+try:
+    m_hash = os.path.getmtime('model.pkl') + os.path.getmtime('features.pkl')
+except:
+    m_hash = 0
+
+model, features, model_name = load_model_resources(m_hash)
 
 if db_connected and not df_all.empty:
     st.markdown("""
