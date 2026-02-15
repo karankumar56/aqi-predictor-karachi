@@ -25,21 +25,19 @@ def train_and_evaluate():
     print(f"Data fetched: {len(df)} records.")
     
     # Preprocess
-    df = preprocess_data(df)
-    print(f"Data after preprocessing: {len(df)} records.")
-    
-    # Define features and target
-    # We predict 'us_aqi' for the next hour (t+1)
-    target_col = 'us_aqi'
+    df = preprocess_data(df, is_training=True)
     
     # Shift target logic: 
     # Current row features -> Next hour AQI
-    df['target'] = df[target_col].shift(-1)
-    df = df.dropna()
+    df['target'] = df['us_aqi'].shift(-1)
     
-    # Feature selection (exclude date, target, ids)
-    features = [c for c in df.columns if c not in ['date', 'target', '_id']]
-    print(f"Features: {features}")
+    # Drop rows with NaN (early history for lags/rolling, and the last row for target)
+    df = df.dropna()
+    print(f"Data after preprocessing and alignment: {len(df)} records.")
+    
+    # Feature selection (focus on lags and rolling averages)
+    features = [c for c in df.columns if 'lag' in c or 'rolling' in c or c in ['hour', 'day_of_week', 'month']]
+    print(f"Features used: {features}")
     
     X = df[features]
     y = df['target']
@@ -101,39 +99,58 @@ def train_and_evaluate():
 def predict_next_72_hours(model, features, recent_data):
     """
     Generates a 72-hour AQI forecast using recursive multi-step forecasting.
-    Correctly aligns features from T to predict T+1.
+    Maintains a history buffer and applies robust clipping to prevent drift/explosion.
     """
     predictions = []
-    # Work on a copy of the dataframe
-    history_df = recent_data.copy()
+    # We need enough history for the longest lag window (24h)
+    history_df = recent_data.tail(100).copy()
     
-    for _ in range(72):
-        # 1. Feature Engineering: Re-calculate features based on current history
-        # This includes lag and rolling features updated with previous predictions
-        df_processed = preprocess_data(history_df.copy())
+    # Estimate a reasonable upper bound based on recent history + safety margin
+    last_known_aqi = history_df['us_aqi'].iloc[-1]
+    max_physical_aqi = 500 # Absolute maximum based on EPA scales
+    
+    for i in range(72):
+        # 1. Preprocess: Generate features based on current history
+        df_processed = preprocess_data(history_df.copy(), is_training=False)
         
-        # 2. Alignment: Use the VERY LAST row (T) to predict the NEXT hour (T+1)
+        # 2. Get Input: Use the VERY LAST row to predict the next step
         input_row = df_processed.iloc[-1:]
         X_input = input_row[features]
         
-        # 3. Predict: Sanity clip to 0 which is the physical floor
-        pred_aqi = np.maximum(0, model.predict(X_input)[0])
+        # 3. Predict & Clip
+        # We apply two-stage clipping:
+        # - Hard floor at 0 (physical limit)
+        # - Hard ceiling at 500 (physical limit)
+        # - Smoothing: Prevent massive jumps between steps (max 20% change per hour)
+        raw_pred = model.predict(X_input)[0]
         
-        # 4. Update History: Add a new row for the forecast hour
+        # Apply smoothing relative to previous value in history
+        prev_aqi = history_df['us_aqi'].iloc[-1]
+        
+        # Allow more flexibility for the first step, then dampen the feedback loop
+        dampening = 0.15 # Max 15% change per step to prevent explosion
+        lower_bound = prev_aqi * (1 - dampening)
+        upper_bound = prev_aqi * (1 + dampening)
+        
+        pred_aqi = np.clip(raw_pred, lower_bound, upper_bound)
+        pred_aqi = np.clip(pred_aqi, 0, max_physical_aqi)
+        
+        # 4. Update History
         last_date = history_df['date'].iloc[-1]
         next_date = last_date + pd.Timedelta(hours=1)
         
+        # Create a new row with the predicted AQI
         new_row = pd.DataFrame({'date': [next_date], 'us_aqi': [pred_aqi]})
         
-        # Carry forward external/environmental variables (persistence assumption)
-        last_known_vals = history_df.iloc[-1].to_dict()
-        for col, val in last_known_vals.items():
-            if col not in ['date', 'us_aqi', 'target'] and col not in new_row.columns:
+        # Carry forward external/weather features
+        last_known = history_df.iloc[-1].to_dict()
+        for col, val in last_known.items():
+            if col not in ['date', 'us_aqi', 'target'] and col not in new_row.columns and 'lag' not in col and 'rolling' not in col:
                  new_row[col] = val
                  
         history_df = pd.concat([history_df, new_row], ignore_index=True)
         
-        predictions.append({'date': next_date, 'predicted_aqi': pred_aqi})
+        predictions.append({'date': next_date, 'predicted_aqi': float(pred_aqi)})
         
     return pd.DataFrame(predictions)
 
