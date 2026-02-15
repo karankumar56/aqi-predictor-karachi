@@ -8,8 +8,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 
-# Add src to path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+# Add src to path using absolute reference
+base_dir = os.path.dirname(os.path.abspath(__file__))
+src_dir = os.path.join(base_dir, 'src')
+if src_dir not in sys.path:
+    sys.path.append(src_dir)
 
 from database import AQIDatabase
 from preprocessing import preprocess_data
